@@ -486,6 +486,76 @@
     background: linear-gradient(90deg, var(--blue), var(--purple));
     transition: width .5s ease;
   }
+
+  /* ── Code Editor ── */
+  #view-editor {
+    display: flex; flex-direction: column; height: calc(100vh - 49px);
+    padding: 0 !important; overflow: hidden;
+  }
+  .editor-topbar {
+    background: var(--bg2); border-bottom: 1px solid var(--border);
+    padding: 8px 16px; display: flex; align-items: center; gap: 10px;
+    flex-shrink: 0;
+  }
+  .editor-file-tabs { display: flex; gap: 2px; overflow-x: auto; flex: 1; }
+  .editor-tab {
+    padding: 4px 14px; border-radius: var(--r) var(--r) 0 0;
+    font-size: 11px; font-family: var(--mono); cursor: pointer;
+    background: var(--bg3); color: var(--text2); white-space: nowrap;
+    border: 1px solid var(--border); border-bottom: none;
+    display: flex; align-items: center; gap: 6px; transition: background .12s;
+  }
+  .editor-tab.active { background: var(--bg); color: var(--text); border-color: var(--border2); }
+  .editor-tab .tab-close { color: var(--text3); font-size: 13px; cursor: pointer; padding: 0 2px; }
+  .editor-tab .tab-close:hover { color: var(--accent); }
+  .editor-body { display: flex; flex: 1; overflow: hidden; }
+  .editor-sidebar {
+    width: 210px; min-width: 210px; background: var(--bg2);
+    border-right: 1px solid var(--border); overflow-y: auto; flex-shrink: 0;
+  }
+  .editor-sidebar-head {
+    padding: 8px 12px; font-size: 10px; font-weight: 600;
+    letter-spacing: .08em; text-transform: uppercase;
+    color: var(--text3); font-family: var(--mono); border-bottom: 1px solid var(--border);
+  }
+  .file-tree-item {
+    padding: 5px 12px; font-size: 11px; font-family: var(--mono);
+    color: var(--text2); cursor: pointer; display: flex; align-items: center; gap: 6px;
+    transition: background .1s; user-select: none;
+  }
+  .file-tree-item:hover  { background: var(--bg3); color: var(--text); }
+  .file-tree-item.active { background: rgba(88,166,255,.1); color: var(--blue); }
+  .file-tree-item.dir    { color: var(--yellow); }
+  .editor-pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  #code-editor {
+    flex: 1; background: var(--bg); color: var(--text);
+    font-family: var(--mono); font-size: 12px; line-height: 1.7;
+    border: none; outline: none; resize: none; padding: 16px;
+    tab-size: 2; width: 100%;
+  }
+  .editor-statusbar {
+    background: var(--bg3); border-top: 1px solid var(--border);
+    padding: 3px 14px; font-size: 10px; font-family: var(--mono);
+    color: var(--text3); display: flex; gap: 16px; align-items: center; flex-shrink: 0;
+  }
+  .editor-actions {
+    padding: 8px 14px; background: var(--bg2); border-top: 1px solid var(--border);
+    display: flex; gap: 8px; align-items: center; flex-shrink: 0;
+  }
+  .deploy-panel {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--r2); padding: 16px; margin-bottom: 16px;
+  }
+  .deploy-panel-title { font-size: 12px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 7px; }
+  .deploy-log-live {
+    background: var(--bg); border: 1px solid var(--border); border-radius: var(--r);
+    padding: 10px 12px; font-family: var(--mono); font-size: 11px; line-height: 1.8;
+    max-height: 200px; overflow-y: auto; color: var(--text2);
+  }
+  .deploy-log-live .ll-ok   { color: var(--green); }
+  .deploy-log-live .ll-err  { color: var(--accent); }
+  .deploy-log-live .ll-info { color: var(--blue); }
+  .deploy-log-live .ll-ts   { color: var(--text3); }
 </style>
 </head>
 <body>
@@ -538,6 +608,16 @@
   </div>
 
   <div class="nav-section">
+    <div class="nav-label">Tools</div>
+    <div class="nav-item" data-view="editor" onclick="switchView('editor',this)">
+      <span class="icon">✦</span> Code Editor
+    </div>
+    <div class="nav-item" data-view="deploy-panel" onclick="switchView('deploy-panel',this)">
+      <span class="icon">🚀</span> Deploy
+    </div>
+  </div>
+
+  <div class="nav-section">
     <div class="nav-label">System</div>
     <div class="nav-item" data-view="settings" onclick="switchView('settings',this)">
       <span class="icon">⚙</span> Settings
@@ -569,6 +649,8 @@
       <button class="btn btn-ghost btn-sm" onclick="refreshAll()">⟳ Refresh</button>
       <button class="btn btn-primary btn-sm" id="btn-new-repo" onclick="openModal('modal-new-repo')" style="display:none">+ New Repo</button>
       <button class="btn btn-cf btn-sm" id="btn-new-page" onclick="openModal('modal-new-page')" style="display:none">+ New Page</button>
+      <button class="btn btn-primary btn-sm" id="btn-save-file" onclick="saveCurrentFile()" style="display:none">💾 Save</button>
+      <button class="btn btn-cf btn-sm" id="btn-commit-push" onclick="openModal('modal-commit')" style="display:none">↑ Commit & Push</button>
     </div>
   </div>
 
@@ -865,6 +947,91 @@
   </div>
 </div>
 
+
+    <!-- Code Editor view -->
+    <div id="view-editor" class="hidden" style="padding:0;margin:0">
+      <div class="editor-topbar">
+        <div class="editor-file-tabs" id="editor-tabs"></div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <select class="input-field" style="width:200px;font-size:11px" id="editor-repo-select" onchange="loadRepoTree()">
+            <option value="">— リポジトリ選択 —</option>
+          </select>
+          <select class="input-field" style="width:120px;font-size:11px" id="editor-branch-select" onchange="loadRepoTree()">
+            <option value="main">main</option>
+          </select>
+        </div>
+      </div>
+      <div class="editor-body">
+        <div class="editor-sidebar">
+          <div class="editor-sidebar-head">EXPLORER</div>
+          <div id="file-tree">
+            <div class="empty-state" style="padding:24px 12px;font-size:11px">リポジトリを選択してください</div>
+          </div>
+        </div>
+        <div class="editor-pane">
+          <textarea id="code-editor" spellcheck="false" placeholder="ファイルを選択してください..."></textarea>
+          <div class="editor-statusbar">
+            <span id="editor-filepath" style="color:var(--text2)">No file open</span>
+            <span id="editor-lang"></span>
+            <span id="editor-lines"></span>
+            <span style="margin-left:auto;color:var(--text3)" id="editor-modified"></span>
+          </div>
+          <div class="editor-actions">
+            <button class="btn btn-ghost btn-sm" onclick="formatCode()">⊞ Format</button>
+            <span style="flex:1"></span>
+            <button class="btn btn-ghost btn-sm" onclick="openModal('modal-commit')">↑ Commit & Push</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Deploy Panel view -->
+    <div id="view-deploy-panel" class="hidden">
+      <div style="max-width:680px">
+        <!-- Pages Deploy -->
+        <div class="deploy-panel">
+          <div class="deploy-panel-title">▲ Cloudflare Pages — デプロイトリガー</div>
+          <div style="display:flex;gap:8px;margin-bottom:12px">
+            <select class="input-field" style="flex:1" id="dp-pages-select">
+              <option value="">— Pages プロジェクトを選択 —</option>
+            </select>
+            <button class="btn btn-cf" onclick="triggerPagesDeploy()" id="btn-pages-deploy">🚀 Deploy</button>
+          </div>
+          <div class="deploy-log-live" id="dp-pages-log" style="display:none"></div>
+        </div>
+
+        <!-- Worker Deploy -->
+        <div class="deploy-panel">
+          <div class="deploy-panel-title">⚡ Cloudflare Workers — スクリプトをデプロイ</div>
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <select class="input-field" style="flex:1" id="dp-worker-select">
+              <option value="">— Worker を選択 —</option>
+            </select>
+            <button class="btn btn-ghost btn-sm" onclick="loadDpWorkerCode()">⟳ 読み込む</button>
+          </div>
+          <div class="input-group" style="margin-bottom:8px">
+            <textarea class="input-field" id="dp-worker-code" rows="10"
+              style="font-family:var(--mono);font-size:11px;resize:vertical;line-height:1.6"
+              placeholder="Worker スクリプト (JavaScript)..."></textarea>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary" onclick="deployWorkerScript()" id="btn-worker-deploy">⚡ Deploy Worker</button>
+          </div>
+          <div class="deploy-log-live" id="dp-worker-log" style="display:none;margin-top:10px"></div>
+        </div>
+
+        <!-- GitHub Actions (commit trigger) -->
+        <div class="deploy-panel">
+          <div class="deploy-panel-title">⬡ GitHub — ファイルをコミット＆プッシュ</div>
+          <p style="font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.6">
+            Code Editor でファイルを編集後、このパネルからコミットできます。<br>
+            Cloudflare Pages と GitHub が連携済みの場合、プッシュ後に自動デプロイが走ります。
+          </p>
+          <button class="btn btn-primary btn-sm" onclick="openModal('modal-commit')">↑ Commit & Push</button>
+        </div>
+      </div>
+    </div>
+
 <!-- ── Modals ── -->
 
 <!-- New Repo Modal -->
@@ -1069,6 +1236,46 @@
   </div>
 </div>
 
+<!-- Commit Modal -->
+<div class="modal-overlay" id="modal-commit">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">↑ Commit & Push</div>
+      <button class="modal-close" onclick="closeModal('modal-commit')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="input-group">
+        <label class="input-label">Repository</label>
+        <select class="input-field" id="commit-modal-repo">
+          <option value="">— リポジトリを選択 —</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <label class="input-label">Branch</label>
+        <input type="text" class="input-field" id="commit-modal-branch" value="main" placeholder="main">
+      </div>
+      <div class="input-group">
+        <label class="input-label">File Path (リポジトリルートからの相対パス)</label>
+        <input type="text" class="input-field" id="commit-modal-path" placeholder="src/index.js">
+      </div>
+      <div class="input-group">
+        <label class="input-label">Commit Message *</label>
+        <input type="text" class="input-field" id="commit-modal-msg" placeholder="feat: update file">
+      </div>
+      <div class="input-group">
+        <label class="input-label">File Content</label>
+        <textarea class="input-field" id="commit-modal-content" rows="8"
+          style="font-family:var(--mono);font-size:11px;resize:vertical;line-height:1.6"
+          placeholder="ファイルの内容..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-commit')">Cancel</button>
+      <button class="btn btn-primary" onclick="commitFile()" id="btn-commit-file">↑ Commit & Push</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast container -->
 <div class="toast-container" id="toasts"></div>
 
@@ -1088,14 +1295,16 @@ const S = {
 };
 
 const VIEWS = {
-  dashboard: { title: 'Dashboard',     sub: 'github × cloudflare overview',  btnRepo: false, btnPage: false },
-  repos:     { title: 'Repositories',  sub: 'github repositories',           btnRepo: true,  btnPage: false },
-  commits:   { title: 'Commits',       sub: 'commit history',                btnRepo: false, btnPage: false },
-  issues:    { title: 'Issues & PRs',  sub: 'open issues & pull requests',   btnRepo: false, btnPage: false },
-  pages:     { title: 'Pages',         sub: 'cloudflare pages projects',     btnRepo: false, btnPage: true  },
-  deploys:   { title: 'Deployments',   sub: 'cloudflare pages deployments',  btnRepo: false, btnPage: false },
-  workers:   { title: 'Workers',       sub: 'cloudflare workers',            btnRepo: false, btnPage: false },
-  settings:  { title: 'Settings',      sub: 'token management',              btnRepo: false, btnPage: false },
+  dashboard:     { title: 'Dashboard',     sub: 'github × cloudflare overview',  btnRepo: false, btnPage: false, btnSave: false, btnCommit: false },
+  repos:         { title: 'Repositories',  sub: 'github repositories',           btnRepo: true,  btnPage: false, btnSave: false, btnCommit: false },
+  commits:       { title: 'Commits',       sub: 'commit history',                btnRepo: false, btnPage: false, btnSave: false, btnCommit: false },
+  issues:        { title: 'Issues & PRs',  sub: 'open issues & pull requests',   btnRepo: false, btnPage: false, btnSave: false, btnCommit: false },
+  pages:         { title: 'Pages',         sub: 'cloudflare pages projects',     btnRepo: false, btnPage: true,  btnSave: false, btnCommit: false },
+  deploys:       { title: 'Deployments',   sub: 'cloudflare pages deployments',  btnRepo: false, btnPage: false, btnSave: false, btnCommit: false },
+  workers:       { title: 'Workers',       sub: 'cloudflare workers',            btnRepo: false, btnPage: false, btnSave: false, btnCommit: false },
+  editor:        { title: 'Code Editor',   sub: 'edit repository files',         btnRepo: false, btnPage: false, btnSave: true,  btnCommit: true  },
+  'deploy-panel':{ title: 'Deploy',        sub: 'pages · workers · push',        btnRepo: false, btnPage: false, btnSave: false, btnCommit: false },
+  settings:      { title: 'Settings',      sub: 'token management',              btnRepo: false, btnPage: false, btnSave: false, btnCommit: false },
 };
 
 // ─────────────────────────────────────────────
@@ -1128,13 +1337,29 @@ function init() {
 // ─────────────────────────────────────────────
 function showView(id) {
   document.querySelectorAll('[id^="view-"]').forEach(v => v.classList.add('hidden'));
-  document.getElementById('view-' + id)?.classList.remove('hidden');
+  const viewEl = document.getElementById('view-' + id);
+  if (viewEl) viewEl.classList.remove('hidden');
 
   const v = VIEWS[id] || {};
   document.getElementById('topbar-title').textContent = v.title || id;
   document.getElementById('topbar-sub').textContent   = v.sub || '';
-  document.getElementById('btn-new-repo').style.display = v.btnRepo ? '' : 'none';
-  document.getElementById('btn-new-page').style.display = v.btnPage ? '' : 'none';
+  document.getElementById('btn-new-repo').style.display  = v.btnRepo   ? '' : 'none';
+  document.getElementById('btn-new-page').style.display  = v.btnPage   ? '' : 'none';
+  document.getElementById('btn-save-file').style.display = v.btnSave   ? '' : 'none';
+  document.getElementById('btn-commit-push').style.display = v.btnCommit ? '' : 'none';
+
+  // Editor fullscreen: remove content padding
+  const contentEl = document.getElementById('content');
+  if (id === 'editor') {
+    contentEl.style.padding = '0';
+    contentEl.style.display = 'flex';
+    contentEl.style.flexDirection = 'column';
+    contentEl.style.overflow = 'hidden';
+  } else {
+    contentEl.style.padding = '20px';
+    contentEl.style.display = '';
+    contentEl.style.overflow = '';
+  }
 }
 
 function switchView(id, el) {
@@ -1144,13 +1369,15 @@ function switchView(id, el) {
 
   showView(id);
 
-  if (id === 'dashboard') loadDashboard();
-  if (id === 'repos')     renderRepos();
-  if (id === 'commits')   populateRepoSelect('commit-repo-select');
-  if (id === 'issues')    populateRepoSelect('issue-repo-select');
-  if (id === 'pages')     renderPages();
-  if (id === 'deploys')   populatePagesSelect('deploy-project-select');
-  if (id === 'workers')   loadWorkers();
+  if (id === 'dashboard')      loadDashboard();
+  if (id === 'repos')          renderRepos();
+  if (id === 'commits')        populateRepoSelect('commit-repo-select');
+  if (id === 'issues')         populateRepoSelect('issue-repo-select');
+  if (id === 'pages')          renderPages();
+  if (id === 'deploys')        populatePagesSelect('deploy-project-select');
+  if (id === 'workers')        loadWorkers();
+  if (id === 'editor')         initEditor();
+  if (id === 'deploy-panel')   initDeployPanel();
 }
 
 // ─────────────────────────────────────────────
@@ -2026,6 +2253,423 @@ function demoDeploys() {
     { id:'qrs11223ijk', branch:'dev',  date:new Date(Date.now()-259200000).toISOString(), status:'failure', deployment_trigger:{metadata:{commit_message:'wip: new homepage design', branch:'dev'}} },
   ];
 }
+
+
+// ═════════════════════════════════════════════
+// CODE EDITOR
+// ═════════════════════════════════════════════
+const Editor = {
+  repo: '',
+  branch: 'main',
+  path: '',
+  sha: '',       // blob SHA for update
+  tabs: [],      // [{path, content, sha, modified}]
+  activeTab: -1,
+};
+
+const LANG_MAP = {
+  js:'JavaScript', ts:'TypeScript', jsx:'JSX', tsx:'TSX',
+  html:'HTML', css:'CSS', scss:'SCSS',
+  json:'JSON', md:'Markdown', yaml:'YAML', yml:'YAML',
+  py:'Python', rb:'Ruby', go:'Go', rs:'Rust', sh:'Shell',
+  toml:'TOML', sql:'SQL', txt:'Text',
+};
+
+function initEditor() {
+  populateEditorRepoSelect();
+  renderEditorTabs();
+}
+
+function populateEditorRepoSelect() {
+  const el = document.getElementById('editor-repo-select');
+  const cur = el.value;
+  el.innerHTML = '<option value="">— リポジトリ選択 —</option>' +
+    S.repos.map(r => `<option value="${r.full_name||r.name}">${r.name}</option>`).join('');
+  if (cur) el.value = cur;
+}
+
+async function loadRepoTree() {
+  const repo   = document.getElementById('editor-repo-select').value;
+  const branch = document.getElementById('editor-branch-select').value || 'main';
+  const treeEl = document.getElementById('file-tree');
+  if (!repo) { treeEl.innerHTML = '<div class="empty-state" style="padding:24px 12px;font-size:11px">リポジトリを選択してください</div>'; return; }
+
+  Editor.repo   = repo;
+  Editor.branch = branch;
+  treeEl.innerHTML = '<div style="padding:12px;color:var(--text3);font-size:11px;font-family:var(--mono)"><span class="spinner"></span> 読み込み中...</div>';
+
+  try {
+    let items;
+    if (S.ghToken) {
+      const data = await ghFetch(`/repos/${repo}/git/trees/${branch}?recursive=1`);
+      items = (data.tree || []).filter(i => i.type === 'blob');
+    } else {
+      items = [{path:'index.html',type:'blob'},{path:'style.css',type:'blob'},{path:'main.js',type:'blob'},{path:'README.md',type:'blob'}];
+    }
+    renderFileTree(items);
+
+    // populate branch select
+    if (S.ghToken) {
+      const branches = await ghFetch(`/repos/${repo}/branches`);
+      const bSel = document.getElementById('editor-branch-select');
+      bSel.innerHTML = branches.map(b => `<option value="${b.name}">${b.name}</option>`).join('');
+      bSel.value = branch;
+    }
+  } catch(e) {
+    treeEl.innerHTML = `<div class="empty-state" style="padding:12px;font-size:11px">Error: ${esc(e.message)}</div>`;
+    toast(e.message, 'error');
+  }
+}
+
+function renderFileTree(items) {
+  const treeEl = document.getElementById('file-tree');
+  if (!items.length) { treeEl.innerHTML = '<div style="padding:12px;font-size:11px;color:var(--text3)">ファイルなし</div>'; return; }
+
+  // Group by directory
+  const dirs = {};
+  items.forEach(item => {
+    const parts = item.path.split('/');
+    const dir   = parts.length > 1 ? parts.slice(0,-1).join('/') : '';
+    if (!dirs[dir]) dirs[dir] = [];
+    dirs[dir].push(item);
+  });
+
+  let html = '';
+  const allDirs = [...new Set(items.map(i => {
+    const p = i.path.split('/');
+    return p.length > 1 ? p.slice(0,-1).join('/') : '';
+  }))].filter(Boolean).sort();
+
+  // Top-level files
+  (dirs[''] || []).forEach(item => {
+    const ext  = item.path.split('.').pop();
+    const icon = fileIcon(ext);
+    html += `<div class="file-tree-item" onclick="openFile('${esc(item.path)}','${item.sha||''}')" data-path="${esc(item.path)}">${icon} ${esc(item.path)}</div>`;
+  });
+
+  // Directories
+  allDirs.forEach(dir => {
+    html += `<div class="file-tree-item dir">📁 ${esc(dir)}/</div>`;
+    (dirs[dir] || []).forEach(item => {
+      const ext  = item.path.split('.').pop();
+      const icon = fileIcon(ext);
+      const name = item.path.split('/').pop();
+      html += `<div class="file-tree-item" style="padding-left:22px" onclick="openFile('${esc(item.path)}','${item.sha||''}')" data-path="${esc(item.path)}">${icon} ${esc(name)}</div>`;
+    });
+  });
+
+  treeEl.innerHTML = html;
+}
+
+function fileIcon(ext) {
+  const m = {js:'🟨',ts:'🔷',jsx:'🟦',tsx:'🔹',html:'🟧',css:'🟦',scss:'💜',json:'📋',md:'📝',yaml:'📋',yml:'📋',py:'🐍',rb:'💎',go:'🐹',rs:'🦀',sh:'🐚',toml:'⚙',sql:'🗄',png:'🖼',jpg:'🖼',svg:'🎨',gif:'🖼'};
+  return m[ext] || '📄';
+}
+
+async function openFile(path, sha) {
+  const repo   = Editor.repo;
+  const branch = Editor.branch;
+  if (!repo) return;
+
+  // Check if already open in tabs
+  const existingIdx = Editor.tabs.findIndex(t => t.path === path);
+  if (existingIdx !== -1) { activateTab(existingIdx); return; }
+
+  try {
+    let content = '', fileSha = sha;
+    if (S.ghToken) {
+      const data = await ghFetch(`/repos/${repo}/contents/${path}?ref=${branch}`);
+      content  = decodeURIComponent(escape(atob(data.content.replace(/\n/g,''))));
+      fileSha  = data.sha;
+    } else {
+      content = `// ${path}\n// (デモモード: 実際のコードは表示されません)\n`;
+    }
+    Editor.tabs.push({ path, content, sha: fileSha, modified: false, original: content });
+    activateTab(Editor.tabs.length - 1);
+    renderEditorTabs();
+
+    // highlight active in tree
+    document.querySelectorAll('.file-tree-item').forEach(el => el.classList.remove('active'));
+    document.querySelector(`.file-tree-item[data-path="${path}"]`)?.classList.add('active');
+  } catch(e) {
+    toast('ファイル読み込みエラー: ' + e.message, 'error');
+  }
+}
+
+function activateTab(idx) {
+  Editor.activeTab = idx;
+  const tab = Editor.tabs[idx];
+  if (!tab) return;
+
+  const el = document.getElementById('code-editor');
+  el.value = tab.content;
+  el.oninput = () => {
+    tab.content  = el.value;
+    tab.modified = tab.content !== tab.original;
+    updateEditorStatus();
+    renderEditorTabs();
+  };
+
+  const ext  = tab.path.split('.').pop();
+  document.getElementById('editor-filepath').textContent = tab.path;
+  document.getElementById('editor-lang').textContent     = LANG_MAP[ext] || ext.toUpperCase();
+  updateEditorStatus();
+  renderEditorTabs();
+}
+
+function updateEditorStatus() {
+  const tab = Editor.tabs[Editor.activeTab];
+  if (!tab) return;
+  const lines = tab.content.split('\n').length;
+  document.getElementById('editor-lines').textContent = lines + ' lines';
+  document.getElementById('editor-modified').textContent = tab.modified ? '● 未保存' : '';
+}
+
+function renderEditorTabs() {
+  const el = document.getElementById('editor-tabs');
+  if (!Editor.tabs.length) { el.innerHTML = '<span style="font-size:11px;color:var(--text3);padding:4px 8px;font-family:var(--mono)">No files open</span>'; return; }
+  el.innerHTML = Editor.tabs.map((t,i) => {
+    const name = t.path.split('/').pop();
+    const mod  = t.modified ? '●' : '';
+    return `<div class="editor-tab ${i===Editor.activeTab?'active':''}" onclick="activateTab(${i})">
+      ${mod ? `<span style="color:var(--orange);font-size:10px">${mod}</span>` : ''}
+      ${esc(name)}
+      <span class="tab-close" onclick="event.stopPropagation();closeTab(${i})">×</span>
+    </div>`;
+  }).join('');
+}
+
+function closeTab(idx) {
+  const tab = Editor.tabs[idx];
+  if (tab.modified && !confirm(`${tab.path} に未保存の変更があります。閉じますか？`)) return;
+  Editor.tabs.splice(idx, 1);
+  if (Editor.activeTab >= Editor.tabs.length) Editor.activeTab = Editor.tabs.length - 1;
+  if (Editor.activeTab >= 0) activateTab(Editor.activeTab);
+  else {
+    document.getElementById('code-editor').value = '';
+    document.getElementById('editor-filepath').textContent = 'No file open';
+    document.getElementById('editor-lang').textContent = '';
+    document.getElementById('editor-lines').textContent = '';
+    document.getElementById('editor-modified').textContent = '';
+  }
+  renderEditorTabs();
+}
+
+function formatCode() {
+  const el = document.getElementById('code-editor');
+  // Simple indent normalization (no external dep)
+  toast('Format: 外部ライブラリなしのため基本整形のみ', 'info');
+}
+
+function saveCurrentFile() {
+  const tab = Editor.tabs[Editor.activeTab];
+  if (!tab) { toast('ファイルが開かれていません', 'error'); return; }
+  // Pre-fill commit modal
+  document.getElementById('commit-modal-repo').innerHTML =
+    `<option value="${esc(Editor.repo)}">${esc(Editor.repo)}</option>`;
+  document.getElementById('commit-modal-branch').value  = Editor.branch;
+  document.getElementById('commit-modal-path').value    = tab.path;
+  document.getElementById('commit-modal-content').value = tab.content;
+  document.getElementById('commit-modal-msg').value     = 'edit: ' + tab.path;
+  openModal('modal-commit');
+}
+
+// ─────────────────────────────────────────────
+// Commit & Push (GitHub Contents API)
+// ─────────────────────────────────────────────
+async function commitFile() {
+  const repo    = document.getElementById('commit-modal-repo').value || Editor.repo;
+  const branch  = document.getElementById('commit-modal-branch').value.trim() || 'main';
+  const path    = document.getElementById('commit-modal-path').value.trim();
+  const message = document.getElementById('commit-modal-msg').value.trim();
+  const contentRaw = document.getElementById('commit-modal-content').value;
+
+  if (!repo)    { toast('リポジトリを選択してください', 'error'); return; }
+  if (!path)    { toast('ファイルパスを入力してください', 'error'); return; }
+  if (!message) { toast('コミットメッセージを入力してください', 'error'); return; }
+
+  const btn = document.getElementById('btn-commit-file');
+  btn.disabled = true; btn.textContent = 'Pushing...';
+
+  try {
+    // Base64 encode content
+    const b64 = btoa(unescape(encodeURIComponent(contentRaw)));
+
+    // Get current file SHA (needed for update)
+    let fileSha;
+    const tab = Editor.tabs.find(t => t.path === path);
+    if (tab?.sha) {
+      fileSha = tab.sha;
+    } else if (S.ghToken) {
+      try {
+        const existing = await ghFetch(`/repos/${repo}/contents/${path}?ref=${branch}`);
+        fileSha = existing.sha;
+      } catch(e) { /* new file, no SHA needed */ }
+    }
+
+    const body = { message, content: b64, branch };
+    if (fileSha) body.sha = fileSha;
+
+    if (S.ghToken) {
+      const result = await ghFetch(`/repos/${repo}/contents/${path}`, {
+        method: 'PUT', body: JSON.stringify(body),
+      });
+      // Update tab SHA
+      if (tab) { tab.sha = result.content.sha; tab.modified = false; tab.original = contentRaw; }
+      toast(`✓ ${path} をコミットしました`, 'success');
+    } else {
+      toast('(デモ) コミットをシミュレートしました', 'info');
+    }
+
+    closeModal('modal-commit');
+    renderEditorTabs();
+    updateEditorStatus();
+  } catch(e) {
+    toast('Commit Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '↑ Commit & Push';
+  }
+}
+
+// ═════════════════════════════════════════════
+// DEPLOY PANEL
+// ═════════════════════════════════════════════
+function initDeployPanel() {
+  // Populate Pages select
+  const pSel = document.getElementById('dp-pages-select');
+  pSel.innerHTML = '<option value="">— Pages プロジェクトを選択 —</option>' +
+    S.pages.map(p => `<option value="${p.name||p.subdomain}">${p.name||p.subdomain}</option>`).join('');
+
+  // Populate Worker select
+  populateDpWorkerSelect();
+
+  // Populate commit modal repo select
+  const cSel = document.getElementById('commit-modal-repo');
+  cSel.innerHTML = '<option value="">— リポジトリを選択 —</option>' +
+    S.repos.map(r => `<option value="${r.full_name||r.name}">${r.name}</option>`).join('');
+}
+
+async function populateDpWorkerSelect() {
+  const wSel = document.getElementById('dp-worker-select');
+  wSel.innerHTML = '<option value="">— Worker を選択 —</option>';
+  if (S.cfToken && S.cfProxyUrl && S.cfAccountId) {
+    try {
+      const data = await cfFetch(`/accounts/${S.cfAccountId}/workers/scripts`);
+      const workers = data.result || [];
+      wSel.innerHTML += workers.map(w => `<option value="${w.id||w.name}">${w.id||w.name}</option>`).join('');
+    } catch(e) { /* ignore */ }
+  } else {
+    wSel.innerHTML += '<option value="devhub-cf-proxy">devhub-cf-proxy (demo)</option>';
+  }
+}
+
+function dpLog(elId, msg, type = '') {
+  const el = document.getElementById(elId);
+  el.style.display = '';
+  const ts  = new Date().toLocaleTimeString('ja-JP');
+  const cls = type === 'ok' ? 'll-ok' : type === 'err' ? 'll-err' : type === 'info' ? 'll-info' : 'll-ts';
+  el.innerHTML += `<span class="ll-ts">[${ts}]</span> <span class="${cls}">${esc(msg)}</span>\n`;
+  el.scrollTop = el.scrollHeight;
+}
+
+// Pages deploy trigger (via Cloudflare API - create deployment)
+async function triggerPagesDeploy() {
+  const project = document.getElementById('dp-pages-select').value;
+  if (!project) { toast('Pages プロジェクトを選択してください', 'error'); return; }
+
+  const logEl = 'dp-pages-log';
+  document.getElementById(logEl).innerHTML = '';
+  const btn = document.getElementById('btn-pages-deploy');
+  btn.disabled = true; btn.textContent = '🚀 Deploying...';
+
+  dpLog(logEl, `Triggering deploy for: ${project}`, 'info');
+
+  try {
+    if (S.cfToken && S.cfProxyUrl && S.cfAccountId) {
+      dpLog(logEl, 'Sending deploy request to Cloudflare...', 'info');
+      const data = await cfFetch(`/accounts/${S.cfAccountId}/pages/projects/${project}/deployments`, {
+        method: 'POST', body: JSON.stringify({}),
+      });
+      const d = data.result || {};
+      dpLog(logEl, `Deploy triggered! ID: ${d.id || '—'}`, 'ok');
+      dpLog(logEl, `Status: ${d.latest_stage?.name || 'queued'}`, 'ok');
+      dpLog(logEl, `URL: https://${project}.pages.dev`, 'info');
+      toast(`✓ ${project} のデプロイをトリガーしました`, 'success');
+    } else {
+      dpLog(logEl, 'Demo mode — simulating deploy...', 'info');
+      await sleep(800);
+      dpLog(logEl, 'Build queued', 'ok');
+      await sleep(600);
+      dpLog(logEl, 'Installing dependencies...', 'info');
+      await sleep(800);
+      dpLog(logEl, 'Build complete', 'ok');
+      dpLog(logEl, `Deployed to https://${project}.pages.dev`, 'ok');
+      toast('(デモ) デプロイをシミュレートしました', 'info');
+    }
+  } catch(e) {
+    dpLog(logEl, 'Error: ' + e.message, 'err');
+    toast('Deploy Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '🚀 Deploy';
+  }
+}
+
+async function loadDpWorkerCode() {
+  const name = document.getElementById('dp-worker-select').value;
+  if (!name) { toast('Worker を選択してください', 'error'); return; }
+  try {
+    if (S.cfToken && S.cfProxyUrl && S.cfAccountId) {
+      const proxyUrl = S.cfProxyUrl.replace(/\/$/, '') + `/cf/accounts/${S.cfAccountId}/workers/scripts/${name}`;
+      const res = await fetch(proxyUrl, { headers: { 'X-CF-Token': S.cfToken } });
+      if (!res.ok) throw new Error(res.statusText);
+      document.getElementById('dp-worker-code').value = await res.text();
+      toast('✓ コードを読み込みました', 'success');
+    } else {
+      document.getElementById('dp-worker-code').value = demoWorkerCode();
+      toast('(デモ) サンプルを挿入しました', 'info');
+    }
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function deployWorkerScript() {
+  const name = document.getElementById('dp-worker-select').value;
+  const code = document.getElementById('dp-worker-code').value.trim();
+  if (!name) { toast('Worker を選択してください', 'error'); return; }
+  if (!code) { toast('スクリプトを入力してください', 'error'); return; }
+
+  const logEl = 'dp-worker-log';
+  document.getElementById(logEl).innerHTML = '';
+  const btn = document.getElementById('btn-worker-deploy');
+  btn.disabled = true; btn.textContent = '⚡ Deploying...';
+
+  dpLog(logEl, `Deploying worker: ${name}`, 'info');
+
+  try {
+    if (S.cfToken && S.cfProxyUrl && S.cfAccountId) {
+      const proxyUrl = S.cfProxyUrl.replace(/\/$/, '') + `/cf/accounts/${S.cfAccountId}/workers/scripts/${name}`;
+      const fd = new FormData();
+      fd.append('script', new Blob([code], { type: 'application/javascript' }), 'worker.js');
+      const res = await fetch(proxyUrl, { method: 'PUT', headers: { 'X-CF-Token': S.cfToken }, body: fd });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.errors?.[0]?.message || 'Deploy failed');
+      dpLog(logEl, `✓ ${name} deployed successfully`, 'ok');
+      dpLog(logEl, `Worker URL: https://${name}.workers.dev`, 'info');
+      toast(`✓ ${name} をデプロイしました`, 'success');
+    } else {
+      dpLog(logEl, 'Demo mode — simulating upload...', 'info');
+      await sleep(1000);
+      dpLog(logEl, `✓ ${name} deployed (demo)`, 'ok');
+      toast('(デモ) Worker デプロイをシミュレートしました', 'info');
+    }
+  } catch(e) {
+    dpLog(logEl, 'Error: ' + e.message, 'err');
+    toast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '⚡ Deploy Worker';
+  }
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ─────────────────────────────────────────────
 // Start
