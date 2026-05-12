@@ -1105,7 +1105,7 @@ async function loadRepos() {
 async function loadPages() {
   if (!S.cfToken || !S.cfAccountId || !S.cfProxyUrl) { S.pages = demoPages(); updatePagesBadge(); return; }
   try {
-    const data = await cfFetch('/accounts/' + S.cfAccountId + '/pages/projects?per_page=50');
+    const data = await cfFetch('/accounts/' + S.cfAccountId + '/pages/projects');
     S.pages = data.result || [];
     updatePagesBadge();
   } catch (e) {
@@ -1340,7 +1340,7 @@ async function loadDeployments() {
   try {
     let deploys;
     if (S.cfToken && S.cfAccountId) {
-      const data = await cfFetch(`/accounts/${S.cfAccountId}/pages/projects/${project}/deployments?per_page=20`);
+      const data = await cfFetch(`/accounts/${S.cfAccountId}/pages/projects/${project}/deployments`);
       deploys = data.result || [];
     } else {
       deploys = demoDeploys();
