@@ -1950,51 +1950,49 @@ function demoWorkers() {
   ];
 }
 function demoWorkerCode() {
-  return `export default {
-  async fetch(request, env) {
-    const url = new URL(request.url);
-
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: corsHeaders() });
-    }
-
-    const cfPath = url.pathname.replace(/^\\/cf/, '');
-    const cfUrl  = 'https://api.cloudflare.com/client/v4' + cfPath + url.search;
-    const token  = request.headers.get('X-CF-Token');
-
-    if (!token) {
-      return json({ success: false, errors: [{ message: 'Missing X-CF-Token' }] }, 401);
-    }
-
-    const res = await fetch(cfUrl, {
-      method: request.method,
-      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-      body: ['GET','HEAD'].includes(request.method) ? undefined : request.body,
-    });
-
-    const data = await res.text();
-    return new Response(data, {
-      status: res.status,
-      headers: { 'Content-Type': 'application/json', ...corsHeaders() },
-    });
-  },
-};
-
-function corsHeaders() {
-  return {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type,X-CF-Token',
-  };
+  return [
+    'export default {',
+    '  async fetch(request, env) {',
+    '    const url = new URL(request.url);',
+    '    if (request.method === "OPTIONS") {',
+    '      return new Response(null, { headers: corsHeaders() });',
+    '    }',
+    '    const cfPath = url.pathname.replace(/^\\/cf/, "");',
+    '    const cfUrl  = "https://api.cloudflare.com/client/v4" + cfPath + url.search;',
+    '    const token  = request.headers.get("X-CF-Token");',
+    '    if (!token) {',
+    '      return json({ success: false, errors: [{ message: "Missing X-CF-Token" }] }, 401);',
+    '    }',
+    '    const res = await fetch(cfUrl, {',
+    '      method: request.method,',
+    '      headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },',
+    '      body: ["GET","HEAD"].includes(request.method) ? undefined : request.body,',
+    '    });',
+    '    const data = await res.text();',
+    '    return new Response(data, {',
+    '      status: res.status,',
+    '      headers: { "Content-Type": "application/json", ...corsHeaders() },',
+    '    });',
+    '  },',
+    '};',
+    '',
+    'function corsHeaders() {',
+    '  return {',
+    '    "Access-Control-Allow-Origin": "*",',
+    '    "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",',
+    '    "Access-Control-Allow-Headers": "Content-Type,X-CF-Token",',
+    '  };',
+    '}',
+    '',
+    'function json(obj, status = 200) {',
+    '  return new Response(JSON.stringify(obj), {',
+    '    status,',
+    '    headers: { "Content-Type": "application/json", ...corsHeaders() },',
+    '  });',
+    '}',
+  ].join('\n');
 }
-
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders() },
-  });
-}`;
-}
+function demoRepos() {
   return [
     { name:'portfolio-site', full_name:'you/portfolio-site', description:'Personal portfolio built with Astro', private:false, language:'TypeScript', stargazers_count:12, forks_count:2, open_issues_count:3, updated_at:new Date(Date.now()-3600000).toISOString(), html_url:'#' },
     { name:'api-backend',    full_name:'you/api-backend',    description:'REST API server with Hono + D1',     private:true,  language:'TypeScript', stargazers_count:0,  forks_count:0, open_issues_count:1, updated_at:new Date(Date.now()-86400000).toISOString(), html_url:'#' },
