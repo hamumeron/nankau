@@ -824,6 +824,11 @@
               <label class="input-label">CF_ACCOUNT_ID</label>
               <input type="text" class="input-field" id="settings-cf-account" placeholder="1234567890abcdef">
             </div>
+            <div class="input-group">
+              <label class="input-label">WORKERS_PROXY_URL <span style="color:var(--accent)">*必須</span></label>
+              <input type="text" class="input-field" id="settings-cf-proxy" placeholder="https://devhub-cf-proxy.あなた.workers.dev">
+              <div class="input-hint">worker.js をデプロイ後に取得できる URL。<code class="text-mono" style="font-size:10px">wrangler deploy</code> 実行後に表示されます。</div>
+            </div>
             <div style="display:flex;gap:8px">
               <button class="btn btn-ghost btn-sm" onclick="testCloudflare()">Test Connection</button>
               <button class="btn btn-cf btn-sm" onclick="saveCFTokens()">Save</button>
@@ -962,6 +967,7 @@ const S = {
   ghToken: '',
   cfToken: '',
   cfAccountId: '',
+  cfProxyUrl: '',   // Workers proxy URL (e.g. https://devhub-cf-proxy.xxx.workers.dev)
   repos: [],
   pages: [],
   demoMode: false,
@@ -985,6 +991,7 @@ function init() {
   S.ghToken     = localStorage.getItem('devhub_gh_token') || '';
   S.cfToken     = localStorage.getItem('devhub_cf_token') || '';
   S.cfAccountId = localStorage.getItem('devhub_cf_account') || '';
+  S.cfProxyUrl  = localStorage.getItem('devhub_cf_proxy') || '';
 
   updateDots();
 
@@ -996,12 +1003,10 @@ function init() {
   }
 
   // Pre-fill settings
-  if (S.ghToken) document.getElementById('settings-gh-token').value = S.ghToken;
-  if (S.cfToken) document.getElementById('settings-cf-token').value = S.cfToken;
-  if (S.cfAccountId) document.getElementById('settings-cf-account').value = S.cfAccountId;
-
-  // gitignore switch
-  document.getElementById('switch-gitignore').addEventListener && null;
+  if (S.ghToken)    document.getElementById('settings-gh-token').value   = S.ghToken;
+  if (S.cfToken)    document.getElementById('settings-cf-token').value   = S.cfToken;
+  if (S.cfAccountId)document.getElementById('settings-cf-account').value = S.cfAccountId;
+  if (S.cfProxyUrl) document.getElementById('settings-cf-proxy').value   = S.cfProxyUrl;
 }
 
 // ─────────────────────────────────────────────
@@ -1055,11 +1060,13 @@ async function ghFetch(path, opts = {}) {
 }
 
 async function cfFetch(path, opts = {}) {
-  const res = await fetch('https://api.cloudflare.com/client/v4' + path, {
+  if (!S.cfProxyUrl) throw new Error('Cloudflare Proxy URL が未設定です。Settings から Workers URL を登録してください。');
+  const proxyUrl = S.cfProxyUrl.replace(/\/$/, '') + '/cf' + path;
+  const res = await fetch(proxyUrl, {
     ...opts,
     headers: {
-      'Authorization': 'Bearer ' + S.cfToken,
-      'Content-Type': 'application/json',
+      'X-CF-Token':    S.cfToken,
+      'Content-Type':  'application/json',
       ...(opts.headers || {}),
     },
   });
@@ -1096,7 +1103,7 @@ async function loadRepos() {
 }
 
 async function loadPages() {
-  if (!S.cfToken || !S.cfAccountId) { S.pages = demoPages(); updatePagesBadge(); return; }
+  if (!S.cfToken || !S.cfAccountId || !S.cfProxyUrl) { S.pages = demoPages(); updatePagesBadge(); return; }
   try {
     const data = await cfFetch('/accounts/' + S.cfAccountId + '/pages/projects?per_page=50');
     S.pages = data.result || [];
@@ -1518,17 +1525,17 @@ function saveGHToken() {
 function saveCFTokens() {
   const t = document.getElementById('settings-cf-token').value.trim();
   const a = document.getElementById('settings-cf-account').value.trim();
+  const p = document.getElementById('settings-cf-proxy').value.trim();
   if (t) { S.cfToken = t; localStorage.setItem('devhub_cf_token', t); }
   if (a) { S.cfAccountId = a; localStorage.setItem('devhub_cf_account', a); }
+  if (p) { S.cfProxyUrl = p; localStorage.setItem('devhub_cf_proxy', p); }
   updateDots(); toast('Cloudflare Tokens saved', 'success');
   loadPages();
 }
 function clearAllTokens() {
   if (!confirm('全てのトークンを削除しますか？')) return;
-  localStorage.removeItem('devhub_gh_token');
-  localStorage.removeItem('devhub_cf_token');
-  localStorage.removeItem('devhub_cf_account');
-  S.ghToken = ''; S.cfToken = ''; S.cfAccountId = '';
+  ['devhub_gh_token','devhub_cf_token','devhub_cf_account','devhub_cf_proxy'].forEach(k => localStorage.removeItem(k));
+  S.ghToken = ''; S.cfToken = ''; S.cfAccountId = ''; S.cfProxyUrl = '';
   updateDots(); toast('全トークンを削除しました', 'success');
   location.reload();
 }
@@ -1541,10 +1548,15 @@ async function testGitHub() {
   } catch(e) { toast('GitHub Error: ' + e.message, 'error'); }
 }
 async function testCloudflare() {
-  if (!S.cfToken) { toast('トークンを入力してください', 'error'); return; }
+  if (!S.cfToken)    { toast('CF Token を入力してください', 'error'); return; }
+  if (!S.cfProxyUrl) { toast('Workers Proxy URL を入力してください', 'error'); return; }
   try {
-    const data = await cfFetch('/user/tokens/verify');
-    toast(`✓ Cloudflare: Token valid`, 'success');
+    // verify token via proxy
+    const proxyUrl = S.cfProxyUrl.replace(/\/$/, '') + '/cf/user/tokens/verify';
+    const res = await fetch(proxyUrl, { headers: { 'X-CF-Token': S.cfToken } });
+    const data = await res.json();
+    if (data.success) toast('✓ Cloudflare: Token valid (' + (data.result?.status || 'active') + ')', 'success');
+    else throw new Error(data.errors?.[0]?.message || 'error');
   } catch(e) { toast('CF Error: ' + e.message, 'error'); }
 }
 
@@ -1552,7 +1564,7 @@ function updateDots() {
   const dotGH = document.getElementById('dot-gh');
   const dotCF = document.getElementById('dot-cf');
   dotGH.className = 'dot ' + (S.ghToken ? 'ok' : 'err');
-  dotCF.className = 'dot ' + (S.cfToken ? 'ok' : 'err');
+  dotCF.className = 'dot ' + (S.cfToken && S.cfProxyUrl ? 'ok' : S.cfToken ? 'warn' : 'err');
 }
 
 // ─────────────────────────────────────────────
