@@ -531,6 +531,10 @@
     <div class="nav-item" data-view="deploys" onclick="switchView('deploys',this)">
       <span class="icon">⟳</span> Deployments
     </div>
+    <div class="nav-item" data-view="workers" onclick="switchView('workers',this)">
+      <span class="icon">⚡</span> Workers
+      <span class="nav-badge" id="badge-workers">—</span>
+    </div>
   </div>
 
   <div class="nav-section">
@@ -795,6 +799,19 @@
       </div>
     </div>
 
+    <!-- Workers view -->
+    <div id="view-workers" class="hidden">
+      <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center;">
+        <span class="text-mono text-sm text-muted" id="workers-count-label"></span>
+        <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="loadWorkers()">⟳ Reload</button>
+      </div>
+      <div class="card">
+        <div class="card-body" id="workers-list">
+          <div class="empty-state"><div class="spinner"></div></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Settings view -->
     <div id="view-settings" class="hidden">
       <div style="max-width:560px">
@@ -956,6 +973,102 @@
   </div>
 </div>
 
+<!-- Edit Repo Modal -->
+<div class="modal-overlay" id="modal-edit-repo">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">⬡ Edit Repository</div>
+      <button class="modal-close" onclick="closeModal('modal-edit-repo')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="input-group">
+        <label class="input-label">Description</label>
+        <input type="text" class="input-field" id="edit-repo-desc" placeholder="A short description...">
+      </div>
+      <div class="input-group">
+        <label class="input-label">Homepage URL</label>
+        <input type="text" class="input-field" id="edit-repo-homepage" placeholder="https://example.com">
+      </div>
+      <hr class="divider">
+      <div class="toggle-row">
+        <span class="toggle-label">🌐 Public（公開）</span>
+        <div class="switch" id="edit-repo-public-switch" onclick="toggleSwitch(this)"></div>
+      </div>
+      <div class="toggle-row">
+        <span class="toggle-label">Issues を有効にする</span>
+        <div class="switch on" id="edit-repo-issues-switch" onclick="toggleSwitch(this)"></div>
+      </div>
+      <div class="toggle-row">
+        <span class="toggle-label">Wiki を有効にする</span>
+        <div class="switch on" id="edit-repo-wiki-switch" onclick="toggleSwitch(this)"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-edit-repo')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEditRepo()" id="btn-save-edit-repo">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Pages Modal -->
+<div class="modal-overlay" id="modal-edit-page">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">▲ Edit Pages Project</div>
+      <button class="modal-close" onclick="closeModal('modal-edit-page')">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--text3);font-family:var(--mono);margin-bottom:14px" id="edit-page-name-label"></div>
+      <div class="input-group">
+        <label class="input-label">Production Branch</label>
+        <input type="text" class="input-field" id="edit-page-branch" placeholder="main">
+      </div>
+      <hr class="divider">
+      <div class="section-title" style="margin-bottom:8px">Build Settings</div>
+      <div class="input-group">
+        <label class="input-label">Build Command</label>
+        <input type="text" class="input-field" id="edit-page-build" placeholder="npm run build">
+      </div>
+      <div class="input-group">
+        <label class="input-label">Build Output Directory</label>
+        <input type="text" class="input-field" id="edit-page-output" placeholder="dist">
+      </div>
+      <div class="input-group">
+        <label class="input-label">Root Directory</label>
+        <input type="text" class="input-field" id="edit-page-root" placeholder="/ (デフォルト)">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-edit-page')">Cancel</button>
+      <button class="btn btn-cf" onclick="saveEditPage()" id="btn-save-edit-page">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Worker Modal -->
+<div class="modal-overlay" id="modal-edit-worker">
+  <div class="modal" style="width:660px">
+    <div class="modal-head">
+      <div class="modal-title">⚡ Edit Worker</div>
+      <button class="modal-close" onclick="closeModal('modal-edit-worker')">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--text3);font-family:var(--mono);margin-bottom:10px" id="edit-worker-name-label"></div>
+      <div class="input-group">
+        <label class="input-label">Worker Script (JavaScript)</label>
+        <textarea class="input-field" id="edit-worker-code" rows="16"
+          style="font-family:var(--mono);font-size:11px;resize:vertical;line-height:1.6"
+          placeholder="export default { async fetch(request, env) { ... } }"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-edit-worker')">Cancel</button>
+      <button class="btn btn-ghost btn-sm" onclick="loadWorkerCode()" id="btn-load-worker-code">⟳ 現在のコードを読み込む</button>
+      <button class="btn btn-primary" onclick="saveEditWorker()" id="btn-save-edit-worker">Deploy</button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast container -->
 <div class="toast-container" id="toasts"></div>
 
@@ -981,6 +1094,7 @@ const VIEWS = {
   issues:    { title: 'Issues & PRs',  sub: 'open issues & pull requests',   btnRepo: false, btnPage: false },
   pages:     { title: 'Pages',         sub: 'cloudflare pages projects',     btnRepo: false, btnPage: true  },
   deploys:   { title: 'Deployments',   sub: 'cloudflare pages deployments',  btnRepo: false, btnPage: false },
+  workers:   { title: 'Workers',       sub: 'cloudflare workers',            btnRepo: false, btnPage: false },
   settings:  { title: 'Settings',      sub: 'token management',              btnRepo: false, btnPage: false },
 };
 
@@ -1036,6 +1150,7 @@ function switchView(id, el) {
   if (id === 'issues')    populateRepoSelect('issue-repo-select');
   if (id === 'pages')     renderPages();
   if (id === 'deploys')   populatePagesSelect('deploy-project-select');
+  if (id === 'workers')   loadWorkers();
 }
 
 // ─────────────────────────────────────────────
@@ -1180,6 +1295,7 @@ function repoItem(r, compact = false) {
     ${!compact ? `
     <div class="repo-actions" onclick="event.stopPropagation()">
       <a href="${r.html_url || '#'}" target="_blank" class="btn btn-ghost btn-sm">↗ Open</a>
+      <button class="btn btn-ghost btn-sm" onclick="openEditRepo('${r.full_name || r.name}')">✏</button>
       <button class="btn btn-danger btn-sm" onclick="openDeleteRepo('${r.full_name || r.name}','${esc(r.name)}')">🗑</button>
     </div>` : ''}
   </div>`;
@@ -1223,6 +1339,7 @@ function pageItem(p) {
     </div>
     <div style="display:flex;gap:6px;align-items:center">
       <span class="pages-status ${statusClass}">${statusLabel}</span>
+      <button class="btn btn-ghost btn-sm" onclick="openEditPage('${p.name || p.subdomain}')">✏</button>
       <a href="${url}" target="_blank" class="btn btn-ghost btn-sm">↗</a>
     </div>
   </div>`;
@@ -1622,9 +1739,262 @@ function emptyState(icon, text) {
 }
 
 // ─────────────────────────────────────────────
+// Workers
+// ─────────────────────────────────────────────
+async function loadWorkers() {
+  const el    = document.getElementById('workers-list');
+  const label = document.getElementById('workers-count-label');
+  if (!el) return;
+  el.innerHTML = `<div class="empty-state"><div class="spinner"></div></div>`;
+
+  try {
+    let workers;
+    if (S.cfToken && S.cfProxyUrl && S.cfAccountId) {
+      const data = await cfFetch(`/accounts/${S.cfAccountId}/workers/scripts`);
+      workers = data.result || [];
+    } else {
+      workers = demoWorkers();
+    }
+    document.getElementById('badge-workers').textContent = workers.length || '—';
+    label.textContent = workers.length + ' workers';
+    if (!workers.length) { el.innerHTML = emptyState('⚡', 'Workers なし'); return; }
+    el.innerHTML = workers.map(w => `
+      <div class="pages-item">
+        <div style="width:32px;height:32px;background:rgba(188,140,255,.12);border:1px solid rgba(188,140,255,.3);
+          border-radius:var(--r);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px">⚡</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:var(--purple);margin-bottom:2px">${esc(w.id || w.name || '—')}</div>
+          <div style="font-size:11px;color:var(--text3);font-family:var(--mono)">
+            ${w.etag ? 'etag: ' + w.etag.slice(0,12) + '…' : ''}
+            · Modified ${w.modified_on ? timeAgo(w.modified_on) : '—'}
+          </div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <a href="https://${esc(w.id||w.name)}.${S.cfAccountId ? '' : 'workers'}.dev" target="_blank" class="btn btn-ghost btn-sm">↗</a>
+          <button class="btn btn-ghost btn-sm" onclick="openEditWorker('${esc(w.id||w.name)}')">✏ Edit</button>
+        </div>
+      </div>`).join('');
+  } catch(e) {
+    el.innerHTML = emptyState('⚡', 'エラー: ' + e.message);
+    toast(e.message, 'error');
+  }
+}
+
+// ─────────────────────────────────────────────
+// Edit Repo
+// ─────────────────────────────────────────────
+let _editRepoTarget = null;
+function openEditRepo(fullName) {
+  _editRepoTarget = fullName;
+  const r = S.repos.find(r => (r.full_name || r.name) === fullName || r.name === fullName);
+  if (!r) return;
+  document.getElementById('edit-repo-desc').value     = r.description || '';
+  document.getElementById('edit-repo-homepage').value = r.homepage    || '';
+  const pubSwitch = document.getElementById('edit-repo-public-switch');
+  if (!r.private) pubSwitch.classList.add('on'); else pubSwitch.classList.remove('on');
+  const issSwitch = document.getElementById('edit-repo-issues-switch');
+  if (r.has_issues !== false) issSwitch.classList.add('on'); else issSwitch.classList.remove('on');
+  const wikiSwitch = document.getElementById('edit-repo-wiki-switch');
+  if (r.has_wiki !== false) wikiSwitch.classList.add('on'); else wikiSwitch.classList.remove('on');
+  openModal('modal-edit-repo');
+}
+
+async function saveEditRepo() {
+  const btn  = document.getElementById('btn-save-edit-repo');
+  btn.disabled = true; btn.textContent = '保存中...';
+  const body = {
+    description:  document.getElementById('edit-repo-desc').value,
+    homepage:     document.getElementById('edit-repo-homepage').value,
+    private:      !document.getElementById('edit-repo-public-switch').classList.contains('on'),
+    has_issues:   document.getElementById('edit-repo-issues-switch').classList.contains('on'),
+    has_wiki:     document.getElementById('edit-repo-wiki-switch').classList.contains('on'),
+  };
+  try {
+    if (S.ghToken) {
+      const updated = await ghFetch('/repos/' + _editRepoTarget, { method: 'PATCH', body: JSON.stringify(body) });
+      const idx = S.repos.findIndex(r => (r.full_name||r.name) === _editRepoTarget || r.name === _editRepoTarget.split('/').pop());
+      if (idx !== -1) S.repos[idx] = { ...S.repos[idx], ...updated };
+    } else {
+      const idx = S.repos.findIndex(r => r.name === _editRepoTarget.split('/').pop());
+      if (idx !== -1) S.repos[idx] = { ...S.repos[idx], ...body };
+      toast('(デモ) 保存をシミュレートしました', 'info');
+    }
+    closeModal('modal-edit-repo');
+    renderRepos();
+    toast('✓ リポジトリを更新しました', 'success');
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save Changes';
+  }
+}
+
+// ─────────────────────────────────────────────
+// Edit Pages
+// ─────────────────────────────────────────────
+let _editPageTarget = null;
+function openEditPage(name) {
+  _editPageTarget = name;
+  const p = S.pages.find(p => (p.name || p.subdomain) === name);
+  document.getElementById('edit-page-name-label').textContent = '▲ ' + name + '.pages.dev';
+  document.getElementById('edit-page-branch').value = p?.production_branch || 'main';
+  document.getElementById('edit-page-build').value  = p?.build_config?.build_command    || '';
+  document.getElementById('edit-page-output').value = p?.build_config?.destination_dir  || '';
+  document.getElementById('edit-page-root').value   = p?.build_config?.root_dir         || '';
+  openModal('modal-edit-page');
+}
+
+async function saveEditPage() {
+  const btn = document.getElementById('btn-save-edit-page');
+  btn.disabled = true; btn.textContent = '保存中...';
+  const body = {
+    production_branch: document.getElementById('edit-page-branch').value || 'main',
+    build_config: {
+      build_command:   document.getElementById('edit-page-build').value,
+      destination_dir: document.getElementById('edit-page-output').value,
+      root_dir:        document.getElementById('edit-page-root').value,
+    },
+  };
+  try {
+    if (S.cfToken && S.cfProxyUrl && S.cfAccountId) {
+      const data = await cfFetch(`/accounts/${S.cfAccountId}/pages/projects/${_editPageTarget}`, {
+        method: 'PATCH', body: JSON.stringify(body),
+      });
+      const idx = S.pages.findIndex(p => (p.name||p.subdomain) === _editPageTarget);
+      if (idx !== -1 && data.result) S.pages[idx] = data.result;
+    } else {
+      toast('(デモ) 保存をシミュレートしました', 'info');
+    }
+    closeModal('modal-edit-page');
+    renderPages();
+    toast('✓ Pages プロジェクトを更新しました', 'success');
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save Changes';
+  }
+}
+
+// ─────────────────────────────────────────────
+// Edit Worker
+// ─────────────────────────────────────────────
+let _editWorkerTarget = null;
+function openEditWorker(name) {
+  _editWorkerTarget = name;
+  document.getElementById('edit-worker-name-label').textContent = '⚡ ' + name;
+  document.getElementById('edit-worker-code').value = '';
+  openModal('modal-edit-worker');
+}
+
+async function loadWorkerCode() {
+  const btn = document.getElementById('btn-load-worker-code');
+  btn.textContent = '読み込み中...'; btn.disabled = true;
+  try {
+    if (S.cfToken && S.cfProxyUrl && S.cfAccountId) {
+      // Worker script download (returns raw JS, not JSON)
+      const proxyUrl = S.cfProxyUrl.replace(/\/$/, '') + `/cf/accounts/${S.cfAccountId}/workers/scripts/${_editWorkerTarget}`;
+      const res = await fetch(proxyUrl, { headers: { 'X-CF-Token': S.cfToken } });
+      if (!res.ok) throw new Error(res.statusText);
+      const code = await res.text();
+      document.getElementById('edit-worker-code').value = code;
+      toast('✓ コードを読み込みました', 'success');
+    } else {
+      document.getElementById('edit-worker-code').value = demoWorkerCode();
+      toast('(デモ) サンプルコードを挿入しました', 'info');
+    }
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  } finally {
+    btn.textContent = '⟳ 現在のコードを読み込む'; btn.disabled = false;
+  }
+}
+
+async function saveEditWorker() {
+  const code = document.getElementById('edit-worker-code').value.trim();
+  if (!code) { toast('コードを入力してください', 'error'); return; }
+  const btn = document.getElementById('btn-save-edit-worker');
+  btn.disabled = true; btn.textContent = 'Deploying...';
+  try {
+    if (S.cfToken && S.cfProxyUrl && S.cfAccountId) {
+      // Workers upload uses multipart/form-data with script as text part
+      const proxyUrl = S.cfProxyUrl.replace(/\/$/, '') + `/cf/accounts/${S.cfAccountId}/workers/scripts/${_editWorkerTarget}`;
+      const fd = new FormData();
+      fd.append('script', new Blob([code], { type: 'application/javascript' }), 'worker.js');
+      const res = await fetch(proxyUrl, {
+        method: 'PUT',
+        headers: { 'X-CF-Token': S.cfToken },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.errors?.[0]?.message || 'deploy failed');
+    } else {
+      toast('(デモ) デプロイをシミュレートしました', 'info');
+    }
+    closeModal('modal-edit-worker');
+    toast(`✓ ${_editWorkerTarget} をデプロイしました`, 'success');
+    loadWorkers();
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Deploy';
+  }
+}
+
+// ─────────────────────────────────────────────
 // Demo data
 // ─────────────────────────────────────────────
-function demoRepos() {
+function demoWorkers() {
+  return [
+    { id: 'devhub-cf-proxy', modified_on: new Date(Date.now()-3600000).toISOString(), etag: 'abc123def456abc123def456' },
+    { id: 'api-router',      modified_on: new Date(Date.now()-86400000).toISOString(), etag: 'xyz789uvw012xyz789uvw012' },
+  ];
+}
+function demoWorkerCode() {
+  return `export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { headers: corsHeaders() });
+    }
+
+    const cfPath = url.pathname.replace(/^\\/cf/, '');
+    const cfUrl  = 'https://api.cloudflare.com/client/v4' + cfPath + url.search;
+    const token  = request.headers.get('X-CF-Token');
+
+    if (!token) {
+      return json({ success: false, errors: [{ message: 'Missing X-CF-Token' }] }, 401);
+    }
+
+    const res = await fetch(cfUrl, {
+      method: request.method,
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: ['GET','HEAD'].includes(request.method) ? undefined : request.body,
+    });
+
+    const data = await res.text();
+    return new Response(data, {
+      status: res.status,
+      headers: { 'Content-Type': 'application/json', ...corsHeaders() },
+    });
+  },
+};
+
+function corsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type,X-CF-Token',
+  };
+}
+
+function json(obj, status = 200) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: { 'Content-Type': 'application/json', ...corsHeaders() },
+  });
+}`;
+}
   return [
     { name:'portfolio-site', full_name:'you/portfolio-site', description:'Personal portfolio built with Astro', private:false, language:'TypeScript', stargazers_count:12, forks_count:2, open_issues_count:3, updated_at:new Date(Date.now()-3600000).toISOString(), html_url:'#' },
     { name:'api-backend',    full_name:'you/api-backend',    description:'REST API server with Hono + D1',     private:true,  language:'TypeScript', stargazers_count:0,  forks_count:0, open_issues_count:1, updated_at:new Date(Date.now()-86400000).toISOString(), html_url:'#' },
