@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DevHub</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23e5e7eb'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='16' font-weight='500' text-anchor='middle' fill='%23080809'%3ED%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
 <style>
@@ -445,6 +446,7 @@ code { background: var(--c3); padding: 1px 5px; border-radius: 3px; font-family:
       <button class="btn btn-default btn-sm" onclick="refreshAll()" id="btn-refresh">↻ Refresh</button>
       <button class="btn btn-gh btn-sm" id="btn-new-repo" onclick="openM('m-new-repo')" style="display:none">+ Repo</button>
       <button class="btn btn-cf btn-sm" id="btn-new-page" onclick="openM('m-new-page')" style="display:none">+ Page</button>
+      <button class="btn btn-default btn-sm" id="btn-new-worker" onclick="openM('m-new-worker')" style="display:none">+ Worker</button>
       <button class="btn btn-primary btn-sm" id="btn-commit" onclick="openM('m-commit')" style="display:none">↑ Push</button>
     </div>
   </div>
@@ -612,9 +614,30 @@ function R(o,s=200){return new Response(JSON.stringify(o),{status:s,headers:{'Co
 
     <!-- ── Workers ── -->
     <div id="view-workers" class="hidden">
-      <div style="display:flex;margin-bottom:16px">
+      <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center">
         <span class="mono muted" style="font-size:10px" id="workers-count"></span>
-        <button class="btn btn-default btn-sm" style="margin-left:auto" onclick="loadWorkers()">↻ Reload</button>
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <button class="btn btn-default btn-sm" onclick="loadWorkers()">↻</button>
+          <button class="btn btn-primary btn-sm" onclick="openM('m-new-worker')">+ New Worker</button>
+        </div>
+      </div>
+      <!-- Quick deploy strip -->
+      <div id="worker-quick-deploy" class="hidden" style="margin-bottom:12px">
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">⚡ Quick Deploy — <span id="qd-name" class="mono" style="color:var(--pur)"></span></div>
+            <button class="btn btn-default btn-xs" onclick="document.getElementById('worker-quick-deploy').classList.add('hidden')">✕ close</button>
+          </div>
+          <div style="padding:14px">
+            <textarea class="field field-mono" id="qd-code" rows="10" placeholder="export default { async fetch(request) { ... } }"></textarea>
+            <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+              <button class="btn btn-default btn-sm" onclick="qdLoad()">↓ Load current</button>
+              <span style="flex:1"></span>
+              <button class="btn btn-primary" onclick="qdDeploy()" id="btn-qd">⚡ Deploy</button>
+            </div>
+            <div class="dlog" id="qd-log"></div>
+          </div>
+        </div>
       </div>
       <div class="card"><div id="workers-list"><div class="empty"><div class="spin"></div></div></div></div>
     </div>
@@ -816,25 +839,65 @@ function R(o,s=200){return new Response(JSON.stringify(o),{status:s,headers:{'Co
 
 <!-- Edit Worker -->
 <div class="overlay" id="m-edit-worker">
-  <div class="modal" style="width:620px">
+  <div class="modal" style="width:660px">
     <div class="modal-head">
-      <div class="modal-title">Edit Worker — <span id="ew-name" class="mono" style="color:var(--pur)"></span></div>
+      <div class="modal-title">⚡ <span id="ew-name" class="mono" style="color:var(--pur)"></span></div>
       <button class="modal-close" onclick="closeM('m-edit-worker')">×</button>
     </div>
     <div class="modal-body">
-      <div style="display:flex;gap:6px;margin-bottom:8px">
-        <button class="btn btn-default btn-sm" onclick="loadWorkerCode()" id="btn-lwc">↓ Load current code</button>
+      <div style="display:flex;gap:6px;margin-bottom:10px;align-items:center">
+        <button class="btn btn-default btn-sm" onclick="loadWorkerCode()" id="btn-lwc">↓ Load</button>
+        <span style="width:1px;height:16px;background:var(--c4);margin:0 2px"></span>
+        <span style="font-size:10px;color:var(--c5)">Templates:</span>
+        <button class="btn btn-default btn-xs" onclick="setEWTemplate('hello')">Hello World</button>
+        <button class="btn btn-default btn-xs" onclick="setEWTemplate('router')">Router</button>
+        <button class="btn btn-default btn-xs" onclick="setEWTemplate('proxy')">Proxy</button>
+        <button class="btn btn-default btn-xs" onclick="setEWTemplate('json')">JSON API</button>
       </div>
       <textarea class="field field-mono" id="ew-code" rows="14" placeholder="export default { async fetch(request) { ... } }"></textarea>
     </div>
     <div class="modal-foot">
+      <a id="ew-ext-link" href="#" target="_blank" class="btn btn-default btn-sm" style="margin-right:auto">↗ Open in CF Dashboard</a>
       <button class="btn btn-default" onclick="closeM('m-edit-worker')">Cancel</button>
-      <button class="btn btn-primary" onclick="deployWorkerModal()" id="btn-dw">Deploy</button>
+      <button class="btn btn-primary" onclick="deployWorkerModal()" id="btn-dw">⚡ Deploy</button>
     </div>
   </div>
 </div>
 
 <!-- Delete Repo -->
+<!-- New Worker -->
+<div class="overlay" id="m-new-worker">
+  <div class="modal" style="width:640px">
+    <div class="modal-head">
+      <div class="modal-title">⚡ New Worker</div>
+      <button class="modal-close" onclick="closeM('m-new-worker')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="fg">
+        <label class="label">Worker Name *</label>
+        <input type="text" class="field field-mono" id="nw-name" placeholder="my-worker">
+        <div class="hint">公開URL: my-worker.あなた.workers.dev</div>
+      </div>
+      <div class="fg">
+        <label class="label" style="display:flex;align-items:center;justify-content:space-between">
+          Script
+          <span style="display:flex;gap:4px">
+            <button class="btn btn-default btn-xs" onclick="setTemplate('hello')">Hello World</button>
+            <button class="btn btn-default btn-xs" onclick="setTemplate('router')">Router</button>
+            <button class="btn btn-default btn-xs" onclick="setTemplate('proxy')">Reverse Proxy</button>
+            <button class="btn btn-default btn-xs" onclick="setTemplate('json')">JSON API</button>
+          </span>
+        </label>
+        <textarea class="field field-mono" id="nw-code" rows="14" placeholder="export default { async fetch(request) { ... } }"></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-default" onclick="closeM('m-new-worker')">Cancel</button>
+      <button class="btn btn-primary" onclick="createWorker()" id="btn-nw">⚡ Create & Deploy</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="m-del-repo">
   <div class="modal">
     <div class="modal-head"><div class="modal-title" style="color:var(--err)">Delete Repository</div><button class="modal-close" onclick="closeM('m-del-repo')">×</button></div>
@@ -893,7 +956,7 @@ const VIEWS = {
   issues:   { title:'Issues & PRs', sub:'github',                repo:false, page:false, commit:false },
   pages:    { title:'Pages',        sub:'cloudflare',            repo:false, page:true,  commit:false },
   deploys:  { title:'Deployments',  sub:'cloudflare',            repo:false, page:false, commit:false },
-  workers:  { title:'Workers',      sub:'cloudflare',            repo:false, page:false, commit:false },
+  workers:  { title:'Workers',      sub:'cloudflare',            repo:false, page:false, commit:false, worker:true },
   editor:   { title:'Editor',       sub:'code',                  repo:false, page:false, commit:true  },
   deploy:   { title:'Deploy',       sub:'push & release',        repo:false, page:false, commit:false },
   settings: { title:'Settings',     sub:'tokens',                repo:false, page:false, commit:false },
@@ -933,9 +996,10 @@ function showV(id) {
   const v = VIEWS[id] || {};
   document.getElementById('tb-title').textContent = v.title || id;
   document.getElementById('tb-sub').textContent   = v.sub   || '';
-  document.getElementById('btn-new-repo').style.display = v.repo   ? '' : 'none';
-  document.getElementById('btn-new-page').style.display = v.page   ? '' : 'none';
-  document.getElementById('btn-commit').style.display   = v.commit ? '' : 'none';
+  document.getElementById('btn-new-repo').style.display    = v.repo   ? '' : 'none';
+  document.getElementById('btn-new-page').style.display    = v.page   ? '' : 'none';
+  document.getElementById('btn-new-worker').style.display  = v.worker ? '' : 'none';
+  document.getElementById('btn-commit').style.display      = v.commit ? '' : 'none';
   const c = document.getElementById('content');
   if (id === 'editor') { c.style.cssText = 'padding:0;display:flex;flex-direction:column;overflow:hidden;flex:1'; }
   else { c.style.cssText = 'padding:24px;overflow-y:auto;flex:1'; }
@@ -1088,15 +1152,17 @@ function renderPages() {
 
 // ── Workers ──
 function workerRow(w) {
+  const name = esc(w.id||w.name);
   return `<div class="list-item">
-    <div class="li-icon li-pu">⚡</div>
+    <div style="width:34px;height:34px;border-radius:8px;background:rgba(168,85,247,.1);border:1px solid rgba(168,85,247,.18);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px">⚡</div>
     <div class="li-body">
-      <div class="li-name">${esc(w.id||w.name)}</div>
-      <div class="li-sub">Modified ${timeAgo(w.modified_on)}</div>
+      <div class="li-name">${name}</div>
+      <div class="li-sub mono">workers.dev · Modified ${timeAgo(w.modified_on)}</div>
     </div>
     <div class="li-actions">
-      <button class="btn btn-default btn-xs" onclick="openEditWorker('${esc(w.id||w.name)}')">edit</button>
-      <a href="https://${esc(w.id||w.name)}.workers.dev" target="_blank" class="btn btn-default btn-xs">↗</a>
+      <button class="btn btn-default btn-xs" onclick="openQD('${name}')">Deploy</button>
+      <button class="btn btn-default btn-xs" onclick="openEditWorker('${name}')">Edit</button>
+      <a href="https://${name}.workers.dev" target="_blank" class="btn btn-default btn-xs">↗</a>
     </div>
   </div>`;
 }
@@ -1277,36 +1343,190 @@ async function createPage() {
 
 // ── Workers edit ──
 let _editWorker = null;
+// ── Worker templates ──
+const WK_TEMPLATES = {
+  hello: [
+    'export default {',
+    '  async fetch(request, env, ctx) {',
+    '    return new Response("Hello from Worker!", {',
+    '      headers: { "Content-Type": "text/plain" },',
+    '    });',
+    '  },',
+    '};',
+  ].join('\n'),
+  router: [
+    'export default {',
+    '  async fetch(request, env) {',
+    '    const url = new URL(request.url);',
+    '    const { pathname } = url;',
+    '',
+    '    if (pathname === "/") return ok("Home");',
+    '    if (pathname === "/api/hello") return json({ message: "Hello!" });',
+    '    return new Response("Not Found", { status: 404 });',
+    '  },',
+    '};',
+    '',
+    'const ok   = (t) => new Response(t, { headers: { "Content-Type": "text/plain" } });',
+    'const json = (d) => new Response(JSON.stringify(d), { headers: { "Content-Type": "application/json" } });',
+  ].join('\n'),
+  proxy: [
+    'export default {',
+    '  async fetch(request, env) {',
+    '    const ORIGIN = "https://example.com"; // change this',
+    '    const url = new URL(request.url);',
+    '    url.hostname = new URL(ORIGIN).hostname;',
+    '    const newReq = new Request(url, request);',
+    '    return fetch(newReq);',
+    '  },',
+    '};',
+  ].join('\n'),
+  json: [
+    'export default {',
+    '  async fetch(request, env) {',
+    '    if (request.method === "OPTIONS") return cors();',
+    '',
+    '    const data = { message: "OK", time: new Date().toISOString() };',
+    '    return new Response(JSON.stringify(data), {',
+    '      headers: { "Content-Type": "application/json", ...corsHeaders() },',
+    '    });',
+    '  },',
+    '};',
+    '',
+    'function corsHeaders() {',
+    '  return {',
+    '    "Access-Control-Allow-Origin": "*",',
+    '    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",',
+    '    "Access-Control-Allow-Headers": "Content-Type",',
+    '  };',
+    '}',
+    'const cors = () => new Response(null, { headers: corsHeaders() });',
+  ].join('\n'),
+};
+
+function setTemplate(key) {
+  const el = document.getElementById('nw-code');
+  if (el) el.value = WK_TEMPLATES[key] || '';
+}
+function setEWTemplate(key) {
+  const el = document.getElementById('ew-code');
+  if (el) el.value = WK_TEMPLATES[key] || '';
+}
+
+// ── New Worker ──
+async function createWorker() {
+  const name = document.getElementById('nw-name').value.trim();
+  const code = document.getElementById('nw-code').value.trim();
+  if (!name) { toast('Name is required', 'err'); return; }
+  if (!code) { toast('Script is required', 'err'); return; }
+  const btn = document.getElementById('btn-nw'); btn.disabled=true; btn.textContent='Deploying...';
+  try {
+    if (S.cfToken && S.cfProxy && S.cfAcct) {
+      const url = S.cfProxy.replace(/\/$/, '') + '/cf/accounts/' + S.cfAcct + '/workers/scripts/' + name;
+      const fd = new FormData();
+      fd.append('script', new Blob([code], {type:'application/javascript'}), 'worker.js');
+      const r = await fetch(url, {method:'PUT', headers:{'X-CF-Token':S.cfToken}, body:fd});
+      const d = await r.json();
+      if (!d.success) throw new Error(d.errors?.[0]?.message || 'failed');
+    }
+    const w = {id: name, modified_on: new Date().toISOString()};
+    S.workers.unshift(w);
+    closeM('m-new-worker');
+    renderWorkers();
+    toast('✓ ' + name + ' created & deployed', 'ok');
+    document.getElementById('nw-name').value = '';
+    document.getElementById('nw-code').value = '';
+  } catch(e) { toast(e.message, 'err'); }
+  finally { btn.disabled=false; btn.textContent='⚡ Create & Deploy'; }
+}
+
+// ── Quick Deploy (inline in workers list) ──
+let _qdWorker = null;
+function openQD(name) {
+  _qdWorker = name;
+  document.getElementById('qd-name').textContent = name;
+  document.getElementById('qd-code').value = '';
+  document.getElementById('qd-log').style.display = 'none';
+  document.getElementById('qd-log').innerHTML = '';
+  document.getElementById('worker-quick-deploy').classList.remove('hidden');
+  document.getElementById('worker-quick-deploy').scrollIntoView({behavior:'smooth'});
+}
+async function qdLoad() {
+  if (!_qdWorker) return;
+  try {
+    if (S.cfToken && S.cfProxy && S.cfAcct) {
+      const url = S.cfProxy.replace(/\/$/, '') + '/cf/accounts/' + S.cfAcct + '/workers/scripts/' + _qdWorker;
+      const r = await fetch(url, {headers:{'X-CF-Token':S.cfToken}});
+      document.getElementById('qd-code').value = await r.text();
+    } else { document.getElementById('qd-code').value = WK_TEMPLATES.hello; }
+    toast('Loaded', 'ok');
+  } catch(e) { toast(e.message, 'err'); }
+}
+async function qdDeploy() {
+  const code = document.getElementById('qd-code').value.trim();
+  if (!code) { toast('Code is required', 'err'); return; }
+  const btn = document.getElementById('btn-qd'); btn.disabled=true; btn.textContent='Deploying...';
+  document.getElementById('qd-log').innerHTML = '';
+  dlog('qd-log', 'Uploading ' + _qdWorker + '...', 'info');
+  try {
+    if (S.cfToken && S.cfProxy && S.cfAcct) {
+      const url = S.cfProxy.replace(/\/$/, '') + '/cf/accounts/' + S.cfAcct + '/workers/scripts/' + _qdWorker;
+      const fd = new FormData();
+      fd.append('script', new Blob([code], {type:'application/javascript'}), 'worker.js');
+      const r = await fetch(url, {method:'PUT', headers:{'X-CF-Token':S.cfToken}, body:fd});
+      const d = await r.json();
+      if (!d.success) throw new Error(d.errors?.[0]?.message || 'failed');
+    } else { await sleep(700); }
+    dlog('qd-log', '✓ ' + _qdWorker + ' deployed', 'ok');
+    dlog('qd-log', 'https://' + _qdWorker + '.workers.dev', 'info');
+    toast('✓ Deployed', 'ok');
+    const i = S.workers.findIndex(w=>(w.id||w.name)===_qdWorker);
+    if (i!==-1) S.workers[i].modified_on = new Date().toISOString();
+    renderWorkers();
+  } catch(e) { dlog('qd-log', 'Error: '+e.message, 'err'); toast(e.message, 'err'); }
+  finally { btn.disabled=false; btn.textContent='⚡ Deploy'; }
+}
+
+// ── Edit Worker ──
 function openEditWorker(name) {
   _editWorker = name;
   document.getElementById('ew-name').textContent = name;
   document.getElementById('ew-code').value = '';
+  const extLink = document.getElementById('ew-ext-link');
+  if (extLink && S.cfAcct) extLink.href = 'https://dash.cloudflare.com/' + S.cfAcct + '/workers/services/edit/' + name;
   openM('m-edit-worker');
 }
 async function loadWorkerCode() {
   const btn = document.getElementById('btn-lwc'); btn.disabled=true; btn.textContent='Loading...';
   try {
-    if (S.cfToken&&S.cfProxy&&S.cfAcct) {
-      const url = S.cfProxy.replace(/\/$/,'')+'/cf/accounts/'+S.cfAcct+'/workers/scripts/'+_editWorker;
+    if (S.cfToken && S.cfProxy && S.cfAcct) {
+      const url = S.cfProxy.replace(/\/$/, '') + '/cf/accounts/' + S.cfAcct + '/workers/scripts/' + _editWorker;
       const r = await fetch(url, {headers:{'X-CF-Token':S.cfToken}});
       document.getElementById('ew-code').value = await r.text();
-    } else { document.getElementById('ew-code').value = workerSample(); }
-    toast('Code loaded','ok');
-  } catch(e) { toast(e.message,'err'); } finally { btn.disabled=false; btn.textContent='↓ Load current code'; }
+    } else { document.getElementById('ew-code').value = WK_TEMPLATES.hello; }
+    toast('Code loaded', 'ok');
+  } catch(e) { toast(e.message, 'err'); }
+  finally { btn.disabled=false; btn.textContent='↓ Load'; }
 }
 async function deployWorkerModal() {
   const code = document.getElementById('ew-code').value.trim();
-  if (!code) { toast('Code is required','err'); return; }
+  if (!code) { toast('Code is required', 'err'); return; }
   const btn = document.getElementById('btn-dw'); btn.disabled=true; btn.textContent='Deploying...';
   try {
-    if (S.cfToken&&S.cfProxy&&S.cfAcct) {
-      const url = S.cfProxy.replace(/\/$/,'')+'/cf/accounts/'+S.cfAcct+'/workers/scripts/'+_editWorker;
-      const fd = new FormData(); fd.append('script',new Blob([code],{type:'application/javascript'}),'worker.js');
-      const r = await fetch(url,{method:'PUT',headers:{'X-CF-Token':S.cfToken},body:fd});
-      const d = await r.json(); if (!d.success) throw new Error(d.errors?.[0]?.message||'failed');
+    if (S.cfToken && S.cfProxy && S.cfAcct) {
+      const url = S.cfProxy.replace(/\/$/, '') + '/cf/accounts/' + S.cfAcct + '/workers/scripts/' + _editWorker;
+      const fd = new FormData();
+      fd.append('script', new Blob([code], {type:'application/javascript'}), 'worker.js');
+      const r = await fetch(url, {method:'PUT', headers:{'X-CF-Token':S.cfToken}, body:fd});
+      const d = await r.json();
+      if (!d.success) throw new Error(d.errors?.[0]?.message || 'failed');
     }
-    closeM('m-edit-worker'); toast(`${_editWorker} deployed`,'ok');
-  } catch(e) { toast(e.message,'err'); } finally { btn.disabled=false; btn.textContent='Deploy'; }
+    closeM('m-edit-worker');
+    toast('✓ ' + _editWorker + ' deployed', 'ok');
+    const i = S.workers.findIndex(w=>(w.id||w.name)===_editWorker);
+    if (i!==-1) S.workers[i].modified_on = new Date().toISOString();
+    renderWorkers();
+  } catch(e) { toast(e.message, 'err'); }
+  finally { btn.disabled=false; btn.textContent='⚡ Deploy'; }
 }
 
 // ── Deploy panel ──
@@ -1568,7 +1788,12 @@ function skipSetup() { S.repos=demoRepos(); S.pages=demoPages(); S.workers=demoW
 // ── Modal helpers ──
 function openM(id) {
   document.getElementById(id)?.classList.add('open');
-  if (id==='m-commit') prefillCommit();
+  if (id === 'm-commit') prefillCommit();
+  if (id === 'm-new-worker') {
+    // default to Hello World template if empty
+    const el = document.getElementById('nw-code');
+    if (el && !el.value.trim()) el.value = WK_TEMPLATES.hello;
+  }
 }
 function closeM(id) { document.getElementById(id)?.classList.remove('open'); }
 document.addEventListener('click', e => { if (e.target.classList.contains('overlay')) closeM(e.target.id); });
